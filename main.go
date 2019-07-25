@@ -33,10 +33,12 @@ func main() {
 
 	stdin := read(os.Stdin)
 	output, err := parse(stdin)
+
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "could not decode secret: %v\n", err)
 		os.Exit(1)
 	}
+
 	fmt.Fprint(os.Stdout, string(output))
 }
 
@@ -47,13 +49,26 @@ func parse(in []byte) ([]byte, error) {
 	if err := unmarshal(in, &s, isJSON); err != nil {
 		return nil, err
 	}
+	if isJSON {
+		datajson, ok := s["data"].(map[string]interface{})
 
-	data, ok := s["data"].(map[string]string)
-	if !ok || len(data) == 0 {
+		if !ok || len(datajson) == 0 {
+			return in, nil
+		}
+
+		s["data"] = decodeJSON(datajson)
+		return marshal(s["data"], isJSON)
+	}
+
+	// input is in yaml format
+	datayaml, ok := s["data"].(map[interface{}]interface{})
+
+	if !ok || len(datayaml) == 0 {
 		return in, nil
 	}
-	s["data"] = decode(data)
-	return marshal(s, isJSON)
+
+	s["data"] = decodeYaml(datayaml)
+	return marshal(s["data"], isJSON)
 }
 
 func read(rd io.Reader) []byte {
@@ -94,17 +109,35 @@ func decodeSecret(key, secret string, secrets chan decodedSecret) {
 	secrets <- decodedSecret{Key: key, Value: value}
 }
 
-func decode(data map[string]string) map[string]string {
+func decodeYaml(data map[interface{}]interface{}) map[string]interface{} {
 	length := len(data)
 	secrets := make(chan decodedSecret, length)
-	decoded := make(map[string]string, length)
+	decoded := make(map[string]interface{}, length)
 	for key, encoded := range data {
-		go decodeSecret(key, encoded, secrets)
+		go decodeSecret(key.(string), encoded.(string), secrets)
 	}
+
 	for i := 0; i < length; i++ {
 		secret := <-secrets
 		decoded[secret.Key] = secret.Value
 	}
+
+	return decoded
+}
+
+func decodeJSON(data map[string]interface{}) map[string]interface{} {
+	length := len(data)
+	secrets := make(chan decodedSecret, length)
+	decoded := make(map[string]interface{}, length)
+	for key, encoded := range data {
+		go decodeSecret(key, encoded.(string), secrets)
+	}
+
+	for i := 0; i < length; i++ {
+		secret := <-secrets
+		decoded[secret.Key] = secret.Value
+	}
+
 	return decoded
 }
 

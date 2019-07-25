@@ -152,12 +152,12 @@ func BenchmarkUnmarshalYaml(b *testing.B) {
 }
 
 func TestSecret_Decode(t *testing.T) {
-	data := map[string]string{
+	data := map[string]interface{}{
 		"password": "c2VjcmV0",
 		"app":      "a3ViZXJuZXRlcyBzZWNyZXQgZGVjb2Rlcg==",
 	}
-	result := decode(data)
-	expected := map[string]string{
+	result := decodeJSON(data)
+	expected := map[string]interface{}{
 		"password": "secret",
 		"app":      "kubernetes secret decoder",
 	}
@@ -167,13 +167,13 @@ func TestSecret_Decode(t *testing.T) {
 }
 
 func BenchmarkSecret_Decode(b *testing.B) {
-	data := map[string]string{
+	data := map[string]interface{}{
 		"password": "c2VjcmV0",
 		"app":      "a3ViZXJuZXRlcyBzZWNyZXQgZGVjb2Rlcg==",
 	}
 
 	for n := 0; n < b.N; n++ {
-		decode(data)
+		decodeJSON(data)
 	}
 }
 
